@@ -6,6 +6,9 @@ progsfile="https://raw.githubusercontent.com/jakubgrad/Karbs/master/progs_ubuntu
 repobranch="master"
 REPODIR="$HOME/.local/src"
 
+# --- Resume support ---
+START_FROM="${START_FROM:-1}"
+
 # --- Color definitions ---
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -54,20 +57,25 @@ install_source() {
     mkdir -p "$REPODIR"
     cd "$REPODIR"
     
-    # Get the actual repo name from the URL (e.g., xdg-desktop-portal-wlr-plus-filechooser)
+    # Get the actual repo name from the URL
     actual_repo_name=$(basename "$repo_url" .git)
     
-    # Delete existing directory if it exists
     if [ -d "$actual_repo_name" ]; then
         echo -e "${YELLOW}[WARN]${NC} $actual_repo_name already exists. Deleting and re-cloning..."
         rm -rf "$actual_repo_name"
     fi
     
-    # Fresh clone
     git clone --depth 1 "$repo_url"
     cd "$actual_repo_name"
     
-    # Build
+    # Fix missing unistd.h if needed (for xdg-desktop-portal-wlr)
+    if grep -q "close(fd);" . -R 2>/dev/null; then
+        echo -e "${YELLOW}[PATCH]${NC} Fixing missing unistd.h include (close())"
+        find . -name "*.c" -exec grep -l "close(fd);" {} \; | while read -r file; do
+            grep -q "#include <unistd.h>" "$file" || sed -i '1i#include <unistd.h>' "$file"
+        done
+    fi
+    
     if [ -f "meson.build" ]; then
         meson setup build || meson setup build --reconfigure
         ninja -C build
@@ -82,7 +90,7 @@ install_source() {
     cd "$HOME"
 }
 
-# Install special cases (e.g., keyd, wlroots) - now reads arch package name
+# Install special cases (e.g., keyd, wlroots)
 install_special() {
     local arch_pkg="$1"
     case "$arch_pkg" in
@@ -97,7 +105,7 @@ install_special() {
             sudo systemctl start keyd
             cd "$HOME"
             ;;
-            "atuin")
+        "atuin")
             echo -e "${BLUE}[INFO]${NC} Installing atuin via snap..."
             sudo snap install atuin
             ;;
@@ -176,6 +184,13 @@ installationloop() {
     local n=0
     while IFS=, read -r tag program comment; do
         n=$((n + 1))
+        
+        # Skip items before START_FROM
+        if [ "$n" -lt "$START_FROM" ]; then
+            echo -e "${YELLOW}[SKIP]${NC} $n/$total"
+            continue
+        fi
+        
         comment=$(echo "$comment" | sed -E 's/^"|"$//g')
         
         # Split program field to get arch package and ubuntu package
@@ -186,7 +201,6 @@ installationloop() {
         
         case "$tag" in
             "A")
-                # AUR package: try apt with ubuntu_pkg, fallback to special build
                 if [ -n "$ubuntu_pkg" ] && [ "$ubuntu_pkg" != "$arch_pkg" ]; then
                     install_apt "$arch_pkg" "$ubuntu_pkg"
                 else
@@ -194,11 +208,9 @@ installationloop() {
                 fi
                 ;;
             "S")
-                # Source package: use the ubuntu_pkg as the repo name (since it's a git URL)
                 install_source "$arch_pkg" "$ubuntu_pkg"
                 ;;
             *)
-                # Regular package: install from apt
                 install_apt "$arch_pkg" "$ubuntu_pkg"
                 ;;
         esac
