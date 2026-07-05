@@ -1,7 +1,7 @@
 #!/bin/sh
 
 dotfilesrepo="https://github.com/jakubgrad/wayrice"
-progsfile="https://raw.githubusercontent.com/jakubgrad/Karbs/master/progs.csv"
+progsfile="https://raw.githubusercontent.com/jakubgrad/Karbs/master/progs_arch.csv"
 aurhelper="paru"
 repobranch="master"
 

@@ -2,7 +2,7 @@
 set -e  # Exit on error
 
 dotfilesrepo="https://github.com/jakubgrad/wayrice"
-progsfile="https://raw.githubusercontent.com/jakubgrad/Karbs/master/progs.csv"
+progsfile="https://raw.githubusercontent.com/jakubgrad/Karbs/master/progs_ubuntu.csv"
 repobranch="master"
 REPODIR="$HOME/.local/src"
 
