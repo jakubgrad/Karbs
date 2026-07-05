@@ -16,9 +16,6 @@ NC='\033[0m' # No Color
 # --- Pre-flight checks ---
 echo -e "${RED}[REQUIREMENTS]${NC} This script is meant to be run as a regular user with sudo privileges."
 echo -e "${YELLOW}It is recommended to run it on a fresh user as it may overwrite config files.${NC}"
-echo -e "Continue [y/N]? "
-read -r ans
-[[ "$ans" =~ ^[Yy]$ ]] || exit 1
 
 if [ "$(id -u)" -eq 0 ]; then
     echo -e "${RED}[ERROR]${NC} You are running as root. Please run as a normal user."
@@ -52,16 +49,25 @@ install_apt() {
 # Build and install from source (for 'S' tag)
 install_source() {
     local repo_url="$1"
-    local repo_name="$2"  # Now passed from CSV
+    local repo_name="$2"
     echo -e "${BLUE}[INFO]${NC} Building $repo_name from source..."
     mkdir -p "$REPODIR"
     cd "$REPODIR"
-    if [ -d "$repo_name" ]; then
-        cd "$repo_name" && git pull
-    else
-        git clone --depth 1 "$repo_url"
-        cd "$repo_name"
+    
+    # Get the actual repo name from the URL (e.g., xdg-desktop-portal-wlr-plus-filechooser)
+    actual_repo_name=$(basename "$repo_url" .git)
+    
+    # Delete existing directory if it exists
+    if [ -d "$actual_repo_name" ]; then
+        echo -e "${YELLOW}[WARN]${NC} $actual_repo_name already exists. Deleting and re-cloning..."
+        rm -rf "$actual_repo_name"
     fi
+    
+    # Fresh clone
+    git clone --depth 1 "$repo_url"
+    cd "$actual_repo_name"
+    
+    # Build
     if [ -f "meson.build" ]; then
         meson setup build || meson setup build --reconfigure
         ninja -C build
@@ -90,6 +96,10 @@ install_special() {
             sudo systemctl enable keyd
             sudo systemctl start keyd
             cd "$HOME"
+            ;;
+            "atuin")
+            echo -e "${BLUE}[INFO]${NC} Installing atuin via snap..."
+            sudo snap install atuin
             ;;
         "wlroots-git")
             echo -e "${BLUE}[INFO]${NC} Installing wlroots 0.20 from source..."
